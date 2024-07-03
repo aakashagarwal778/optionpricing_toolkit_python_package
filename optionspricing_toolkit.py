@@ -358,7 +358,8 @@ S_grid, v_grid = option_pricing.AmPerpPut_ODE(S_max, N, r, sigma, K)
 print(f"American Perpetual Put Option Price: {v_grid[0]}")
 
 # 7. Test Heston model using Laplace transform for a European put option
-nu0 = math.pow(0.3, 2)     # Heston model parameters
+# Heston model parameters
+nu0 = math.pow(0.3, 2)     
 kappa = math.pow(0.3, 2)
 lmbda = 2.5
 sigma_tilde = 0.2
