@@ -6,8 +6,13 @@ from scipy.integrate import solve_ivp
 import cmath
 
 class OptionPricing:
-    def __init__(self):
-        pass
+    def __init__(self, S_0, r, sigma, T, K, M):
+        self.S_0 = S_0
+        self.r = r
+        self.sigma = sigma
+        self.T = T
+        self.K = K
+        self.M = M
 
     # Computes the stock price matrix in the CRR model
     def CRR_stock(self, S_0, r, sigma, T, M):
