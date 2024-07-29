@@ -3,6 +3,7 @@ import math
 from scipy.stats import norm
 from scipy import integrate
 from scipy.integrate import solve_ivp
+from scipy.interpolate import interp1d
 import cmath
 
 class OptionPricing:
@@ -241,20 +242,16 @@ class OptionPricing:
         except ValueError as e:
             return e
 
-    # Compute the option price using the Laplace transform method in the Heston model
+    # Computes the option price using the Laplace transform method in the Black-Scholes model
     # for European call/put options
-    def laplace_heston(self, S0, r, nu0, kappa, lmbda, sigma_tilde, T, K, R, p):
+    def laplace_heston(self, S0, r, gam0, kappa, lamb, sig_tild, T, K, R, p):
         try:
             def f_tilde(z):
                 return p * cmath.exp((1 - z / p) * math.log(K)) / (z * (z - p))
 
+            # Characteristic function
             def chi(u):
-                d = cmath.sqrt(math.pow(lmbda, 2) + math.pow(sigma_tilde, 2) * (complex(0, 1) * u + cmath.exp(2 * cmath.log(u))))
-                n = cmath.cosh(d * T / 2) + lmbda * cmath.sinh(d * T / 2) / d
-                z1 = math.exp(lmbda * T / 2)
-                z2 = (complex(0, 1) * u + cmath.exp(2 * cmath.log(u))) * cmath.sinh(d * T / 2) / d
-                v = cmath.exp(complex(0, 1) * u * (math.log(S0) + r * T)) * cmath.exp(2 * kappa / math.pow(sigma_tilde, 2) * cmath.log(z1 / n)) * cmath.exp(-nu0 * z2 / n)
-                return v
+                return self.heston_char(u, S0, r, gam0, kappa, lamb, sig_tild, T)
 
             def integrand(u):
                 return math.exp(-r * T) / math.pi * (f_tilde(R + complex(0, 1) * u) * chi(u - complex(0, 1) * R)).real
@@ -266,6 +263,39 @@ class OptionPricing:
             return e
         except ValueError as e:
             return e
+
+    def heston_char(self, u, S0, r, gam0, kappa, lamb, sig_tild, T):
+        d = np.sqrt(lamb ** 2 + sig_tild ** 2 * (u * 1j + u ** 2))
+        phi = np.cosh(0.5 * d * T)
+        psi = np.sinh(0.5 * d * T) / d
+        first_factor = (np.exp(lamb * T / 2) / (phi + lamb * psi)) ** (2 * kappa / sig_tild ** 2)
+        second_factor = np.exp(-gam0 * (u * 1j + u ** 2) * psi / (phi + lamb * psi))
+        return np.exp(u * 1j * (np.log(S0) + r * T)) * first_factor * second_factor
+
+    def Heston_FFT(self, S0, r, gam0, kappa, lamb, sig_tild, T, K, R, N):
+        try:
+            K = np.atleast_1d(K)
+            f_tilde_0 = lambda u: 1 / (u * (u - 1))
+            chi_0 = lambda u: self.heston_char(u, S0=S0, r=r, gam0=gam0, kappa=kappa, lamb=lamb, sig_tild=sig_tild, T=T)
+            g = lambda u: f_tilde_0(R + 1j * u) * chi_0(u - 1j * R)
+
+            kappa_1 = np.log(K[0])
+            M = np.minimum(2 * np.pi * (N - 1) / (np.log(K[-1]) - kappa_1), 500)
+            Delta = M / N
+            n = np.arange(1, N + 1)
+            kappa_m = np.linspace(kappa_1, kappa_1 + 2 * np.pi * (N - 1) / M, N)
+
+            x = g((n - 0.5) * Delta) * Delta * np.exp(-1j * (n - 1) * Delta * kappa_1)
+            x_hat = np.fft.fft(x)
+
+            V_kappa_m = np.exp(-r * T + (1 - R) * kappa_m) / np.pi * np.real(x_hat * np.exp(-0.5 * Delta * kappa_m * 1j))
+            return interp1d(kappa_m, V_kappa_m)(np.log(K))
+        
+        except TypeError as e:
+            return e
+        except ValueError as e:
+            return e    
+
     
 
     # Computes the option price using the finite difference scheme (explicit method)
